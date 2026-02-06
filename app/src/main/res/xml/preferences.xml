@@ -36,5 +36,15 @@
         android:summary="When enabled device will be wiped after receiving wipe message from the watch"
         android:title="Enable device wipe" />
 
+    <PreferenceCategory android:title="About">
+        <Preference
+            android:key="TAKWatchAboutVersion"
+            android:title="TAKWatch"
+            android:summary="Version 1.0 (ATAK 5.6.0)" />
+        <Preference
+            android:key="TAKWatchAboutBuild"
+            android:title="Build"
+            android:summary="99809adf" />
+    </PreferenceCategory>
 
 </PreferenceScreen>

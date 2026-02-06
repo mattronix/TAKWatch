@@ -121,6 +121,8 @@ public class TakWatchMapComponent extends AbstractMapComponent {
                     handleWatchAlert(msg);
                     break;
                 case "ready":
+                    // Send immediate heartbeat so the watch knows we're connected
+                    watchClient.sendMessageToWatch(Arrays.asList(new Object[]{"hb"}));
                     sendAllMarkersToWatch();
                     break;
                 case "wipe":

@@ -53,7 +53,7 @@ public class RadialMenuDetailsExtenderFactory implements MapMenuFactory {
                 MapMenuButtonWidget mapMenuButtonWidget = (MapMenuButtonWidget) child;
                 if (isWaypointType(mapItem) && isDetailsButton(mapMenuButtonWidget)) {
                     if (hasSubmenu(mapMenuButtonWidget)) {
-                        MapMenuWidget detailsSubmenu = mapMenuButtonWidget.getSubmenuWidget();
+                        MapMenuWidget detailsSubmenu = (MapMenuWidget) mapMenuButtonWidget.getSubmenu();
                         MapMenuButtonWidget buttonWidget = createWatchButton(detailsSubmenu, pluginContext, mapContext);
                         buttonWidget.addOnPressListener(onPressHandler);
                         detailsSubmenu.addWidget(buttonWidget);
@@ -62,7 +62,7 @@ public class RadialMenuDetailsExtenderFactory implements MapMenuFactory {
                         MapMenuButtonWidget buttonWidget = createWatchButton(pluginContext, mapContext);
                         submenu.addWidget(buttonWidget);
                         buttonWidget.addOnPressListener(onPressHandler);
-                        mapMenuButtonWidget.setSubmenuWidget(submenu);
+                        mapMenuButtonWidget.setSubmenu(submenu);
                     }
                 }
             }
@@ -92,7 +92,7 @@ public class RadialMenuDetailsExtenderFactory implements MapMenuFactory {
     }
 
     private boolean hasSubmenu(MapMenuButtonWidget mapMenuButtonWidget) {
-        return mapMenuButtonWidget.getSubmenuWidget() != null;
+        return mapMenuButtonWidget.getSubmenu() != null;
     }
 
     private boolean isWaypointType(MapItem mapItem) {

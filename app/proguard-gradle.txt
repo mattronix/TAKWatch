@@ -62,6 +62,8 @@
 
 -keep class * implements gov.tak.api.plugin.IPlugin {
 }
+-keep class * extends com.atak.plugins.impl.AbstractPluginTool {
+}
 
 # overcome an existing bug in the gradle subsystem (3.5.x)
 -keep class module-info
@@ -87,19 +89,9 @@
 ######################################################################
 ######################################################################
 
-
-######################################################################
-## Please change PluginTemplate to accurately reflect the name of your
-## plugin.  This will help get bug reports to your development group.
-######################################################################
-
--repackageclasses selfMarker.TAKWatch
-
-
 ######################################################################
 ## below you can add any rules specific to your plugin limited to
 ## dontwarn and keep directives
 ######################################################################
 
 -dontwarn androidx.viewpager.widget.ViewPager$SavedState
-

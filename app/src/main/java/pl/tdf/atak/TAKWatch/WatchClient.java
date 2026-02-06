@@ -56,22 +56,79 @@ public class WatchClient {
 
             @Override
             public void onSdkShutDown() {
-                Log.d(TAG, "SDK shout down");
+                Log.d(TAG, "SDK shut down, will attempt reconnect in 5s");
                 isSdkReady = false;
-
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    instance.attemptReconnect();
+                }, 5000);
             }
         });
         return instance;
     }
 
     public void sendMessageToWatch(List<Object> msg) {
+        if (selectedDevice == null || myApp == null) {
+            Log.w(TAG, "sendMessageToWatch: device or app not initialized, skipping");
+            return;
+        }
         try {
             Log.d(TAG, "sendMessageToWatch: " + msg.toString());
             connectIQ.sendMessage(selectedDevice, myApp, msg, (iqDevice, iqApp, iqMessageStatus) -> {
                 Log.d(TAG, "MessageStatus: " + iqMessageStatus);
+                if (iqMessageStatus != ConnectIQ.IQMessageStatus.SUCCESS) {
+                    Log.w(TAG, "Message failed: " + iqMessageStatus + ", will retry once");
+                    retryMessage(msg);
+                }
             });
-        } catch (InvalidStateException | ServiceUnavailableException e) {
-            throw new RuntimeException(e);
+        } catch (InvalidStateException e) {
+            Log.e(TAG, "InvalidState sending message, attempting SDK re-init", e);
+            attemptReconnect();
+        } catch (ServiceUnavailableException e) {
+            Log.e(TAG, "Service unavailable, will retry", e);
+            retryMessage(msg);
+        }
+    }
+
+    private void retryMessage(List<Object> msg) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (selectedDevice != null && myApp != null) {
+                    connectIQ.sendMessage(selectedDevice, myApp, msg, (d, a, s) ->
+                        Log.d(TAG, "Retry MessageStatus: " + s));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Retry also failed", e);
+            }
+        }, 2000);
+    }
+
+    private void attemptReconnect() {
+        Log.d(TAG, "Attempting SDK reconnect...");
+        try {
+            isSdkReady = false;
+            connectIQ.initialize(context, true, new ConnectIQ.ConnectIQListener() {
+                @Override
+                public void onSdkReady() {
+                    Log.d(TAG, "Reconnect: SDK ready");
+                    initializeDevice();
+                    initializeApp();
+                    registerForAppEvents(mapEventsListener);
+                    isSdkReady = true;
+                }
+
+                @Override
+                public void onInitializeError(ConnectIQ.IQSdkErrorStatus status) {
+                    Log.e(TAG, "Reconnect failed: " + status);
+                }
+
+                @Override
+                public void onSdkShutDown() {
+                    Log.d(TAG, "Reconnect: SDK shut down again");
+                    isSdkReady = false;
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Reconnect exception", e);
         }
     }
 

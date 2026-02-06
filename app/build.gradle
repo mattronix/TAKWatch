@@ -9,9 +9,9 @@
 buildscript {
 
     ext.PLUGIN_VERSION = "1.0"
-    ext.ATAK_VERSION = "4.10.0"
+    ext.ATAK_VERSION = '5.6.0'
 
-    def takdevVersion = '2.+'
+    def takdevVersion = '3.+'
 
     def getValueFromPropertiesFile = { propFile, key ->
         if(!propFile.isFile() || !propFile.canRead())
@@ -59,13 +59,16 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.4.2'
-        if(isDevKitEnabled()) {
-            classpath "com.atakmap.gradle:atak-gradle-takdev:${takdevVersion}"
-        } else {
-            classpath files(takdevPlugin)
-        }
+        // Always use local takdev jar since we have it from the SDK
+        classpath files(takdevPlugin)
     }
+}
+
+plugins {
+    id("com.android.application")
+}
+apply {
+    plugin("atak-takdev-plugin")
 }
 
 allprojects {
@@ -79,9 +82,6 @@ allprojects {
         }
     }
 }
-
-apply plugin: 'com.android.application'
-apply plugin: 'atak-takdev-plugin'
 
 
 def supportedFlavors =
@@ -109,8 +109,17 @@ def supportedFlavors =
 ]
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion "30.0.3"
+    compileSdk 36
+    namespace 'pl.tdf.atak.TAKWatch.plugin'
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 
     bundle {
         storeArchive {
@@ -122,14 +131,6 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
-    }
-
-    lintOptions {
-        checkReleaseBuilds true
-        // Or, if you prefer, you can continue to check for errors in release builds,
-        // but continue the build even when errors are found:
-        warning 'ExpiredTargetSdkVersion'
-        abortOnError true
     }
 
     signingConfigs {
@@ -154,7 +155,7 @@ android {
         }
         release {
             minifyEnabled true
-            proguardFile 'proguard-gradle.txt'
+            proguardFiles 'proguard-gradle.txt', 'proguard-gradle-repackage.txt'
             signingConfig signingConfigs.release
             matchingFallbacks = ['odk']
         }
@@ -165,7 +166,7 @@ android {
     productFlavors {
         supportedFlavors.each { flav ->
             "${flav.name}" {
-                getIsDefault().set(flav.name.equals("${flav.default}".toString()))
+                getIsDefault().set(flav.default)
                 dimension "application"
 
                 // retain existing application identifiers for civ and mil
@@ -191,7 +192,10 @@ android {
     }
 
     packagingOptions {
-        exclude 'META-INF/INDEX.LIST'
+        resources {
+            excludes += ['META-INF/INDEX.LIST']
+        }
+        jniLibs.useLegacyPackaging true
     }
 
     sourceSets {
@@ -221,7 +225,7 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 33
+        targetSdkVersion 34
 
         def runTasks = gradle.startParameter.taskNames
         if(runTasks.toString().contains('bundle')) {
@@ -234,11 +238,80 @@ android {
             }
         }
     }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+afterEvaluate {
+    project.file('proguard-gradle-repackage.txt').text = "-repackageclasses atakplugin.${rootProject.getName()}"
+
+    try {
+        tasks.named("compile" + getCommandFlavor() + "ReleaseKotlin") {
+            println "modifying " + getCommandFlavor().toLowerCase() + " kotlin compile options to include: -Xsam-conversions=class"
+            kotlinOptions {
+                freeCompilerArgs += "-Xsam-conversions=class"
+            }
+        }
+    } catch (Exception ignored) { }
+}
+
+def getCommandFlavor() {
+    String  tskReqStr = getGradle().getStartParameter().getTaskRequests().toString()
+
+    java.util.regex.Pattern pattern
+    if( tskReqStr.contains( "assemble" ) )
+        pattern = java.util.regex.Pattern.compile("assemble(\\w+)(Release|Debug)")
+    else if( tskReqStr.contains( "install" ) )
+        pattern = java.util.regex.Pattern.compile("install(\\w+)(Release|Debug)")
+    else
+        pattern = java.util.regex.Pattern.compile("generate(\\w+)(Release|Debug)")
+
+    java.util.regex.Matcher matcher = pattern.matcher(tskReqStr)
+
+    if( matcher.find() ) {
+        return matcher.group(1)
+    } else {
+        return "Civ"
+    }
 }
 
 
 dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
     implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar")
+    // ATAK SDK - added as compileOnly since it's provided by ATAK at runtime
+    compileOnly files("${rootDir}/ATAKSDK/ATAK-CIV-5.6.0.12-SDK/main.jar")
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'androidx.core' && !details.requested.name.contains('core-viewtree')) {
+            details.useVersion "1.17.0"
+        }
+        if (details.requested.group == 'androidx.lifecycle') {
+            details.useVersion "2.9.4"
+        }
+        if (details.requested.group == 'androidx.fragment') {
+            details.useVersion "1.8.9"
+        }
+        if (details.requested.group == 'com.squareup.okhttp3') {
+            details.useVersion "4.11.0"
+        }
+        if (details.requested.group == 'com.squareup.okio') {
+            details.useVersion "3.2.0"
+        }
+    }
+}
+
+configurations.implementation {
+    exclude group: 'androidx.core', module: 'core-ktx'
+    exclude group: 'androidx.core', module: 'core'
+    exclude group: 'androidx.fragment', module: 'fragment'
+    exclude group: 'androidx.lifecycle', module: 'lifecycle'
+    exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
+    exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    exclude group: 'com.squareup.okio', module: 'okio'
+}
